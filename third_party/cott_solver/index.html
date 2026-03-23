@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<html xmlns="http://www.w3.org/1999/html" lang="en">
+<head>
+    <script src="https://unpkg.com/ohm-js@17/dist/ohm.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&family=IBM+Plex+Serif:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Libertinus+Math&family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../lib/styles-v1.css">
+    <script src="../lib/traction-interpret.js"></script>
+
+    <title>COTT Calculator — Architecture Guide</title>
+
+</head>
+<body>
+
+
+<div class="section">
+
+    <a href="/cott">
+        <div class="icon-back"></div>
+    </a>
+
+    <div class="headings">
+        <h1>COTT Calculator</h1>
+        <h2>architecture guide</h2>
+    </div>
+
+    <div>
+        <img src="../lib/img/cott-calculator-3.png" width="928" height="760" class="fullsize-image" />
+    </div>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+        Published under the <a href="https://creativecommons.org/licenses/by/4.0/deed.en">CC BY 4.0</a> license
+    </div>
+</div>
+
+<div class="section">
+
+    <div class="section-title" id="section-1">
+        1. Overview
+    </div>
+
+    <p>
+        The COTT Calculator is a Python/SymPy implementation of Traction Theory's algebra,
+        with a tkinter calculator GUI and phase-plot visualizer. It lives under <code>/solver</code>
+        and comprises roughly 2100 lines across six files.
+    </p>
+
+    <p>
+        The solver is built on two core principles inherited from Traction Theory:
+        <strong>totality</strong> (all operations defined for all values)
+        and <strong>reversibility</strong> (no information loss).
+        These principles drive every design decision &mdash; from zero having a reciprocal,
+        to the universal power-of-power rule that eliminates branch cuts.
+    </p>
+
+    <div class="subsection-title" id="section-1_1">
+        1.1 File Map
+    </div>
+
+    <a href="https://github.com/sibarum/cott/tree/main/solver">Source code on Github</a>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>File</th>
+            <th>Purpose</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><code>traction.py</code></td>
+            <td>Core algebra engine: types, simplifier, projection, logarithms</td>
+        </tr>
+        <tr>
+            <td><code>calculator.py</code></td>
+            <td>GUI: parser, calculator pad, phase-plot visualizer, hover gauges</td>
+        </tr>
+        <tr>
+            <td><code>evaluator.py</code></td>
+            <td>Numeric traction evaluator: TractionValue class, hybrid + exact grid modes</td>
+        </tr>
+        <tr>
+            <td><code>registry.py</code></td>
+            <td>General-purpose function registry (category &rarr; name &rarr; object)</td>
+        </tr>
+        <tr>
+            <td><code>projections/base.py</code></td>
+            <td>Base class for projection plugins</td>
+        </tr>
+        <tr>
+            <td><code>projections/complex_lie.py</code></td>
+            <td>Default projection: <span class="dynamicexpr">0^z</span> &rarr; <em>e</em><sup>&minus;<em>Wz</em></sup></td>
+        </tr>
+        <tr>
+            <td><code>projections/q_surface.py</code></td>
+            <td>Q-norm surface projection for zero-power coordinates</td>
+        </tr>
+        <tr>
+            <td><code>test_traction.py</code></td>
+            <td>106 pytest tests validating all identities</td>
+        </tr>
+        <tr>
+            <td><code>test_calculator.py</code></td>
+            <td>42 smoke tests for the parser/evaluator</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+    </div>
+</div>
+
+<div class="section">
+
+    <div class="section-title" id="section-2">
+        2. Core Algebra (<code>traction.py</code>)
+    </div>
+
+    <h2>Note: This documentation is obsolete and needs rewritten.</h2>
+    <p>
+        A much better implementation <a href="implementation.html">can be found here.</a>
+    </p>
+
+    <div class="subsection-title" id="section-2_1">
+        2.1 Custom Types
+    </div>
+
+    <p>
+        Three custom SymPy <code>Expr</code> subclasses form the foundation.
+        They are <em>not</em> Symbols &mdash; they hook into SymPy's evaluation
+        via <code>_eval_power</code>, <code>__mul__</code>, and <code>__truediv__</code>.
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>Class</th>
+            <th>Represents</th>
+            <th>Key behaviour</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><code>Zero</code></td>
+            <td><span class="dynamicexpr">0</span></td>
+            <td>Not absorbing. <span class="dynamicexpr">0*w=1</span>, <span class="dynamicexpr">0^{-1}=w</span></td>
+        </tr>
+        <tr>
+            <td><code>Omega</code></td>
+            <td>&omega;</td>
+            <td>Reciprocal of zero. <span class="dynamicexpr">w*0=1</span>, <span class="dynamicexpr">w^{-1}=0</span></td>
+        </tr>
+        <tr>
+            <td><code>Null</code></td>
+            <td>&empty;</td>
+            <td>Erasure element. Result of <span class="dynamicexpr">a-a=null</span></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>
+        Two additional classes handle unevaluated logarithms:
+        <code>Log0</code> (base-<span class="dynamicexpr">0</span> logarithm)
+        and <code>LogW</code> (base-&omega; logarithm).
+        These are SymPy <code>Function</code> subclasses that stay symbolic
+        until projected to &Copf;.
+    </p>
+
+    <div class="subsection-title" id="section-2_2">
+        2.2 Power Rules (<code>_eval_power</code>)
+    </div>
+
+    <p>
+        The <code>_eval_power</code> hooks fire during SymPy's <code>Pow</code> construction,
+        so most identities are enforced <em>eagerly</em> &mdash; no simplifier call needed:
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>Identity</th>
+            <th>Generalised form</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><span class="dynamicexpr">0^0 = 1</span></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^{-n} = w^n</span></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^w = -1</span></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^{0^n} = n</span></td>
+            <td><span class="dynamicexpr">0^{0^x} = x</span> for any <span class="variable">x</span></td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^{w^n} = -n</span></td>
+            <td><span class="dynamicexpr">0^{w^x} = -x</span> for any <span class="variable">x</span></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The generalisation beyond integers enables the <code>resolve()</code> identity-resolution
+        technique: wrapping any expression in <span class="dynamicexpr">0^{0^{x}}</span>
+        is a guaranteed no-op.
+    </p>
+
+    <div class="subsection-title" id="section-2_3">
+        2.3 Simplification Engine (<code>traction_simplify</code>)
+    </div>
+
+    <p>
+        The simplifier is a recursive, bottom-up rewriter.
+        It handles three expression types beyond the eager power rules:
+    </p>
+
+    <p>
+        <strong>Pow:</strong>
+        Universal power-of-power: <span class="dynamicexpr">(v^a)^b = v^{a*b}</span>
+        for <em>any</em> base <span class="variable">v</span>,
+        not just <span class="dynamicexpr">0</span> and &omega;.
+        This is what eliminates branch cuts &mdash;
+        <span class="dynamicexpr">(x^2)^{1/2} = x</span>, not <span class="dynamicexpr">|x|</span>.
+    </p>
+
+    <p>
+        <strong>Mul:</strong>
+        All <code>Zero</code> and <code>Omega</code> factors are unified into a single base-0 exponent
+        using &omega;<sup><span class="variable">a</span></sup> = 0<sup>&minus;<span class="variable">a</span></sup>.
+        Exponents are summed:
+        <span class="dynamicexpr">0^a * 0^b = 0^{a+b}</span>,
+        <span class="dynamicexpr">0^a * w^b = 0^{a-b}</span>.
+        After cancellation, the result is reconverted
+        (negative integer exponent &rarr; &omega;-base).
+        Additionally, definite zero-class elements absorb sign:
+        <span class="dynamicexpr">(-1)*0 = 0</span>
+        because negative zero cannot exist
+        (<span class="dynamicexpr">0-0=null</span>, not <span class="dynamicexpr">-0</span>).
+    </p>
+
+    <p>
+        <strong>Add:</strong>
+        If the result is SymPy's <code>S.Zero</code> (from cancellation),
+        it is replaced with <code>Null</code> (the erasure element).
+    </p>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+    </div>
+</div>
+
+<div class="section">
+
+    <div class="section-title" id="section-3">
+        3. Complex Projection (<code>project_complex</code>)
+    </div>
+
+    <p>
+        Projection maps traction expressions to &Copf;.
+        It is intentionally the <em>last</em> step in the pipeline &mdash;
+        all traction simplification happens first, so branch cuts from
+        classical complex arithmetic are avoided.
+    </p>
+
+    <div class="subsection-title" id="section-3_1">
+        3.1 The Lie Exponential
+    </div>
+
+    <p>
+        The core mapping is the Lie group exponential:
+    </p>
+
+    <div class="expression font-lg">
+        <span class="dynamicexpr">0^z</span>
+        <span class="symbol">&rarr;</span>
+        <em>e</em><sup>&minus;<em>Wz</em></sup>
+        &emsp; where &emsp;
+        <em>W</em>&sup2; = &minus;<em>i</em>&pi;
+    </div>
+
+    <p>
+        The structure constant <em>W</em> = &radic;(&minus;<em>i</em>&pi;) &approx; 1.253 &minus; 1.253<em>i</em>,
+        with |<em>W</em>| = &radic;&pi;.
+        This single formula handles all base-0 powers:
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>Traction</th>
+            <th>Projected</th>
+            <th>Verification</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><span class="dynamicexpr">0^0</span></td>
+            <td><em>e</em><sup>0</sup> = 1</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^w</span></td>
+            <td><em>e</em><sup>&minus;<em>W</em>&sup2;</sup> = <em>e</em><sup><em>i</em>&pi;</sup> = &minus;1</td>
+            <td>Consistent with <span class="dynamicexpr">0^w = -1</span></td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^{w/2}</span></td>
+            <td><em>e</em><sup><em>i</em>&pi;/2</sup> = <em>i</em></td>
+            <td>The dyadic imaginary unit</td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^n</span> (positive <span class="variable">n</span>)</td>
+            <td><em>e</em><sup>&minus;<em>nW</em></sup>, magnitude &lt; 1</td>
+            <td>Zero-class: decaying magnitude</td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0^{-n}</span></td>
+            <td><em>e</em><sup><em>nW</em></sup>, magnitude &gt; 1</td>
+            <td>Omega-class: growing magnitude</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="subsection-title" id="section-3_2">
+        3.2 Omega in Exponent Space
+    </div>
+
+    <p>
+        A critical identity for projection:
+        <strong>&omega; = <em>W</em> in exponent space</strong>.
+        This is derived from the consistency equation:
+    </p>
+
+    <div class="expression">
+        <em>e</em><sup>&minus;<em>W</em>&middot;<em>t</em>&omega;</sup> = <em>e</em><sup><em>i</em>&pi;<em>t</em></sup>
+        &emsp; &rArr; &emsp;
+        <em>W</em>&omega; = &minus;<em>i</em>&pi; = <em>W</em>&sup2;
+        &emsp; &rArr; &emsp;
+        &omega; = <em>W</em>
+    </div>
+
+    <p>
+        This means: wherever &omega; appears inside an exponent or logarithm argument,
+        the projector substitutes &omega; &rarr; <em>W</em> before evaluating.
+        Without this, &omega; would project to &infin; (its standalone value),
+        producing <code>zoo</code> contamination.
+    </p>
+
+    <div class="subsection-title" id="section-3_3">
+        3.3 Logarithm Projection
+    </div>
+
+    <p>
+        Inverting the Lie exponential gives the logarithm projections:
+    </p>
+
+    <div class="expression">
+        log<sub><span class="dynamicexpr">0</span></sub>(<span class="variable">y</span>)
+        <span class="symbol">&rarr;</span>
+        &minus;ln(<span class="variable">y</span>) / <em>W</em>
+    </div>
+
+    <div class="expression">
+        log<sub>&omega;</sub>(<span class="variable">y</span>)
+        <span class="symbol">&rarr;</span>
+        ln(<span class="variable">y</span>) / <em>W</em>
+    </div>
+
+    <p>
+        The same &omega; &rarr; <em>W</em> substitution is applied to arguments
+        containing &omega; before the <code>ln</code> is evaluated.
+    </p>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+    </div>
+</div>
+
+
+<div class="section">
+
+    <div class="section-title" id="section-4">
+        4. Visualization Pipeline
+    </div>
+
+    <p>
+        The visualizer renders phase plots (domain colouring) of traction expressions
+        over a 2D grid. The pipeline is designed to stay in the traction domain as long
+        as possible, projecting to &Copf; only at the final step.
+    </p>
+
+    <div class="subsection-title" id="section-4_1">
+        4.1 The Native Pipeline
+    </div>
+
+    <div class="subsection-title" id="section-4_1a">
+        4.1.1 Variable System
+    </div>
+
+    <p>
+        Expressions use three variables with distinct roles:
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>Variable</th>
+            <th>Role</th>
+            <th>Substitution</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><span class="variable">p</span></td>
+            <td>Horizontal grid coordinate</td>
+            <td>Always the real horizontal axis</td>
+        </tr>
+        <tr>
+            <td><span class="variable">q</span></td>
+            <td>Vertical grid coordinate</td>
+            <td>Always the real vertical axis</td>
+        </tr>
+        <tr>
+            <td><span class="variable">x</span></td>
+            <td>Projection's native unit</td>
+            <td>Defined per projection (see below)</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>
+        <span class="variable">p</span> and <span class="variable">q</span> are
+        projection-agnostic &mdash; they always map directly to the grid axes.
+        <span class="variable">x</span> is the projection's <em>native coordinate</em>,
+        meaning the same expression <span class="dynamicexpr">0^x</span> has different
+        geometric meaning depending on which projection is active:
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>Projection</th>
+            <th><span class="variable">x</span> =</th>
+            <th>Interpretation</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>Complex Lie</td>
+            <td><span class="variable">p</span> + <span class="variable">q</span>&middot;<span class="dynamicexpr">0^{w/2}</span></td>
+            <td>Complex plane</td>
+        </tr>
+        <tr>
+            <td>Q-surface</td>
+            <td><span class="dynamicexpr">0^{p + q*0^{w/2}}</span></td>
+            <td>Complex plane lifted into zero-power domain</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>
+        All three variables may appear in the same expression:
+        <span class="dynamicexpr">p^2 + x</span> uses both raw coordinates and the native unit.
+    </p>
+
+    <div class="subsection-title" id="section-4_1b">
+        4.1.2 Pipeline Steps
+    </div>
+
+    <p>
+        <strong>Step 1 &mdash; Parse:</strong>
+        Recursive descent parser converts the input string to a SymPy expression
+        with traction types (<code>Zero</code>, <code>Omega</code>, etc.).
+    </p>
+
+    <p>
+        <strong>Step 2 &mdash; Substitute:</strong>
+        Replace <span class="variable">p</span> &rarr; <span class="variable">a</span>,
+        <span class="variable">q</span> &rarr; <span class="variable">b</span> (real grid symbols),
+        and <span class="variable">x</span> &rarr; the active projection's <code>native_x(a, b)</code>.
+        This substitution happens in the <em>traction domain</em> &mdash;
+        the expressions are still traction objects, not complex numbers.
+    </p>
+
+    <p>
+        <strong>Step 3 &mdash; Traction Simplify:</strong>
+        Apply all traction rewrite rules. The universal power-of-power rule
+        fires here, collapsing expressions like
+        <span class="dynamicexpr">(x^2)^{1/2}</span> &rarr; <span class="variable">x</span>
+        <em>before</em> any complex arithmetic occurs.
+        This is what eliminates branch cuts.
+    </p>
+
+    <p>
+        <strong>Step 4 &mdash; Project:</strong>
+        The active projection converts the simplified traction expression to a form
+        suitable for numeric evaluation. For Complex Lie, this applies
+        <span class="dynamicexpr">0^z</span> &rarr; <em>e</em><sup>&minus;<em>Wz</em></sup>.
+        For Q-surface, it decomposes zero-powers into phase and magnitude coordinates.
+    </p>
+
+    <p>
+        <strong>Step 5 &mdash; Evaluate:</strong>
+        Three evaluator modes are available, selectable in the Settings panel:
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>Evaluator</th>
+            <th>Method</th>
+            <th>Speed</th>
+            <th>Correctness</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><strong>Fast (numpy)</strong></td>
+            <td>SymPy <code>lambdify</code> &rarr; numpy vectorized</td>
+            <td>Instant</td>
+            <td>May have branch cuts at singularities; <span class="variable">p</span>/<span class="variable">q</span> at <span class="variable">q</span>=0 gives NaN</td>
+        </tr>
+        <tr>
+            <td><strong>Hybrid (TractionValue)</strong></td>
+            <td>Per-pixel Python loop with class-tracked arithmetic</td>
+            <td>Seconds</td>
+            <td>Correct zero/omega classes; <span class="variable">p</span>/<span class="variable">q</span> at <span class="variable">q</span>=0 gives <span class="variable">p</span>&middot;&omega;</td>
+        </tr>
+        <tr>
+            <td><strong>Exact (SymPy)</strong></td>
+            <td>Full <code>traction_simplify</code> + <code>project_complex</code> per pixel</td>
+            <td>Minutes</td>
+            <td>Exact &mdash; uses the full symbolic engine for every grid point</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The hybrid evaluator introduces <code>TractionValue</code> (<code>evaluator.py</code>),
+        a numeric type that tracks whether a value is a plain scalar, a zero-power
+        (<span class="dynamicexpr">0^{a+b*w}</span>), or an omega-scaled quantity (result of division by zero).
+        Each arithmetic operation preserves the class distinction:
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th>Operation</th>
+            <th>Class transition</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><span class="variable">p</span> / 0</td>
+            <td>SCALAR &rarr; OMEGA_VAL(<span class="variable">p</span>)</td>
+        </tr>
+        <tr>
+            <td><span class="dynamicexpr">0</span> ^ OMEGA_VAL(<span class="variable">p</span>)</td>
+            <td>&rarr; ZERO_POWER with &omega;-exponent &rarr; <em>e</em><sup><em>i</em>&pi;<em>p</em></sup></td>
+        </tr>
+        <tr>
+            <td>ZERO_POWER &times; ZERO_POWER</td>
+            <td>Exponents add: <span class="dynamicexpr">0^a * 0^b = 0^{a+b}</span></td>
+        </tr>
+        <tr>
+            <td>Scalar near 0 in base</td>
+            <td>Promoted to traction <span class="dynamicexpr">0</span></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The hybrid and exact evaluators run in a <strong>background thread</strong>,
+        keeping the GUI responsive. A progress indicator shows completion percentage,
+        and starting a new computation automatically cancels any in-progress one.
+    </p>
+
+    <p>
+        <strong>Step 6 &mdash; Colour:</strong>
+        Two modes: <em>Phase mode</em> (CMYT quadrant colours, brightness by log-magnitude)
+        and <em>Continuity mode</em> (CMYT following magnitude via double-cover arctan,
+        ensuring |<em>f</em>|&rarr;0 and |<em>f</em>|&rarr;&infin; have the same colour).
+    </p>
+
+    <div class="subsection-title" id="section-4_2">
+        4.2 Why Native Matters
+    </div>
+
+    <p>
+        The key architectural decision: substitution and simplification happen in the
+        <em>traction domain</em>, before any projection to &Copf;.
+        An earlier design projected first, then substituted:
+    </p>
+
+    <p>
+        <code>expr &rarr; project &rarr; subs x&rarr;a+bi &rarr; numpy (branch cuts!)</code>
+    </p>
+
+    <p>
+        This inherited all of &Copf;'s branch cut baggage. Fractional powers like
+        <span class="dynamicexpr">(x^2)^{1/2}</span> would hit numpy's principal-value convention,
+        causing discontinuities on the imaginary axis.
+        The native pipeline reverses the order:
+    </p>
+
+    <p>
+        <code>expr &rarr; subs p,q,x &rarr; traction_simplify &rarr; project &rarr; evaluate</code>
+    </p>
+
+    <p>
+        By the time the expression reaches numeric evaluation,
+        the traction simplifier has already collapsed the nested powers.
+        The branch cut never forms. And with the hybrid evaluator,
+        even the numeric layer preserves traction semantics &mdash;
+        division by zero produces &omega;, not NaN.
+    </p>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+    </div>
+</div>
+
+
+<div class="section">
+
+    <div class="section-title" id="section-5">
+        5. Projection Plugin System
+    </div>
+
+    <p>
+        Projections are modular. Each projection lives in its own
+        <code>.py</code> file under <code>projections/</code>
+        and self-registers into the global registry on import.
+    </p>
+
+    <div class="subsection-title" id="section-5_1">
+        5.1 Registry (<code>registry.py</code>)
+    </div>
+
+    <p>
+        A general-purpose <code>{category, name} &rarr; object</code> store.
+        Not limited to projections &mdash; any subsystem can register functions,
+        strategies, or configuration under its own category.
+    </p>
+
+    <div class="subsection-title" id="section-5_2">
+        5.2 Writing a Projection
+    </div>
+
+    <p>
+        Create a file in <code>projections/</code> that subclasses <code>Projection</code>
+        from <code>projections/base.py</code>. Implement two methods:
+    </p>
+
+    <p>
+        <code>project_expr(traction_expr, a, b)</code> &mdash;
+        Convert a traction expression (containing symbols <span class="variable">a</span>,
+        <span class="variable">b</span>) to a form suitable for <code>lambdify</code>.
+        Handles variable detection and substitution mode (single-variable vs two-variable).
+    </p>
+
+    <p>
+        <code>eval_grid(projected_expr, a, b, AA, BB)</code> &mdash;
+        Lambdify, evaluate on the numpy meshgrid, and return a dictionary of 2D arrays:
+        <code>{Z, Re, Im, mag, log_mag, phase, brightness}</code>.
+    </p>
+
+    <p>
+        Call <code>self.register_self()</code> at module level. The
+        <code>projections/__init__.py</code> auto-imports all <code>.py</code> files
+        in the directory, triggering registration.
+    </p>
+
+    <div class="subsection-title" id="section-5_3">
+        5.3 Q-Surface Projection (<code>projections/q_surface.py</code>)
+    </div>
+
+    <p>
+        An alternative to the Lie exponential that maps zero-powers
+        directly to coordinates on a <span class="variable">q</span>-norm unit surface.
+        Given <span class="dynamicexpr">0^t</span>:
+    </p>
+
+    <div class="expression font-lg">
+        phase = <span class="variable">t</span>
+        &emsp;&emsp;
+        magnitude = (1 &minus; <span class="variable">t</span>&sup2;)<sup>1/<span class="variable">q</span></sup>
+    </div>
+
+    <p>
+        The native unit for q-surface is
+        <span class="variable">x</span> = <span class="dynamicexpr">0^{p + q*0^{w/2}}</span>
+        &mdash; the same complex plane input as Complex Lie, but lifted into the zero-power domain.
+        This means the same expression (e.g. <span class="dynamicexpr">x^2</span>)
+        produces interesting zero-power structure on the q-surface
+        while appearing as a standard polynomial on Complex Lie.
+    </p>
+
+    <p>
+        The parameter <span class="variable">q</span> selects the geometry of the surface:
+    </p>
+
+    <table class="fixed">
+        <thead>
+        <tr>
+            <th><span class="variable">q</span></th>
+            <th>Norm</th>
+            <th>Surface shape</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>1</td>
+            <td>Taxicab</td>
+            <td>Diamond</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>Euclidean</td>
+            <td>Circle (default)</td>
+        </tr>
+        <tr>
+            <td>&infin;</td>
+            <td>Chebyshev</td>
+            <td>Square</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>
+        For |<span class="variable">t</span>| &gt; 1, the magnitude formula takes a root of a
+        negative number, which in traction algebra naturally rotates into the
+        zero-power domain via <span class="dynamicexpr">0^{w/2}</span>.
+        This gives the projection its projective character &mdash;
+        values wrap through infinity rather than diverging.
+    </p>
+
+    <p>
+        The q-surface decomposer handles sums of zero-powers: each term in an
+        <code>Add</code> is decomposed independently, and the q-coordinates are
+        accumulated weighted by scalar factors. Expressions without zero-power
+        structure (e.g. plain <span class="dynamicexpr">x^2</span>) produce a blank plot &mdash;
+        the projection is honest about what it can and cannot represent.
+    </p>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+    </div>
+</div>
+
+
+<div class="section">
+
+    <div class="section-title" id="section-6">
+        6. Design Decisions
+    </div>
+
+    <div class="subsection-title" id="section-6_1">
+        6.1 Expr Subclasses, not Symbols
+    </div>
+
+    <p>
+        <code>Zero</code> and <code>Omega</code> are <code>Expr</code> subclasses
+        with <code>_eval_power</code> hooks. This means SymPy evaluates
+        <span class="dynamicexpr">0^w</span> &rarr; &minus;1 <em>during construction</em>
+        of the <code>Pow</code> object &mdash; no explicit simplify call needed.
+        Using plain Symbols would require a post-hoc rewriter for every expression.
+    </p>
+
+    <div class="subsection-title" id="section-6_2">
+        6.2 Unified Base-0 Exponents
+    </div>
+
+    <p>
+        In multiplication, all <code>Zero</code> and <code>Omega</code> factors
+        are converted to base-0 exponents
+        (&omega;<sup><span class="variable">a</span></sup> = 0<sup>&minus;<span class="variable">a</span></sup>),
+        summed, and reconverted. This single mechanism handles:
+        <span class="dynamicexpr">0*w=1</span> (exponents cancel),
+        <span class="dynamicexpr">0^2*w=0</span> (partial cancel),
+        <span class="dynamicexpr">0^a * 0^b = 0^{a+b}</span> (symbolic combine),
+        and cross-base products like <span class="dynamicexpr">0^5 * w^2 = 0^3</span>.
+    </p>
+
+    <div class="subsection-title" id="section-6_3">
+        6.3 Negative Zero Cannot Exist
+    </div>
+
+    <p>
+        Because the additive identity is <em>erasure</em>
+        (<span class="dynamicexpr">x - x = null</span>),
+        not <span class="dynamicexpr">x + 0 = x</span>,
+        the expression <span class="dynamicexpr">-0 = 0 - 0 = null</span>.
+        Negative zero is incoherent in this system.
+        The parser collapses <code>-0</code> &rarr; <code>0</code>,
+        and the simplifier absorbs sign from definite zero-class elements:
+        <span class="dynamicexpr">(-1)*0 = 0</span>,
+        <span class="dynamicexpr">(-2)*0 = 2*0</span>.
+    </p>
+
+    <div class="subsection-title" id="section-6_4">
+        6.4 Avoiding <code>sp_simplify</code>
+    </div>
+
+    <p>
+        SymPy's <code>simplify()</code> is deliberately avoided in the projection pipeline.
+        It aggressively rewrites expressions in ways that break numeric evaluation &mdash;
+        for instance, merging <em>i</em>&middot;&radic;<em>r</em> into &radic;(&minus;<em>r</em>),
+        which produces NaN for positive <em>r</em>.
+        Projected expressions are left in their natural factored form.
+    </p>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+    </div>
+</div>
+
+
+<div class="section">
+
+    <div class="section-title" id="section-7">
+        7. Known Limitations
+    </div>
+
+    <p>
+        <strong>SymPy eager evaluation:</strong>
+        <span class="dynamicexpr">0^1</span> is eagerly simplified to <code>Zero()</code>
+        by <code>_eval_power</code>, losing the exponent information.
+        This means <code>Pow(Zero(), 1)</code> and bare <code>Zero()</code> are
+        indistinguishable to the projector &mdash; both project via
+        <em>e</em><sup>&minus;<em>W</em></sup>.
+    </p>
+
+    <p>
+        <strong>Non-analytic two-variable mode:</strong>
+        When <span class="variable">x</span> and <span class="variable">y</span> are
+        independent real variables, the function is generally not analytic in the
+        complex sense. Phase and magnitude gradients are independent, so the
+        tangent/normal lines (which follow magnitude) may not align with the
+        phase colouring. This is correct behaviour, not a bug.
+    </p>
+
+    <p>
+        <strong>Projection completeness:</strong>
+        The Lie exponential projection is one of potentially many valid mappings
+        from traction to &Copf;. The plugin system exists specifically to allow
+        alternative projections (e.g. rational-magnitude formulas) to be developed
+        and compared.
+    </p>
+
+    <div class="copyonly">---</div>
+    <div class="section-footer">
+    </div>
+</div>
+
+
+<script>
+</script>
+</body>
+</html>

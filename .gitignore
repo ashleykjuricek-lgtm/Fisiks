@@ -10,3 +10,7 @@ bin/
 *.swo
 *~
 .DS_Store
+
+# Python test/cache artifacts
+__pycache__/
+.pytest_cache/

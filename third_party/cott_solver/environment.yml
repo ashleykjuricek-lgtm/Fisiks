@@ -1,0 +1,8 @@
+name: traction
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - sympy
+  - numpy
+  - pytest
