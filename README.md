@@ -37,3 +37,21 @@ RUNNING:
 	Note:
 	A graphical desktop environment is required. In headless environments (for example,
 	a container without DISPLAY), Java UI startup will fail.
+
+COTT SOLVER (VENDORED):
+
+	The COTT solver is included in:
+	third_party/cott_solver
+
+	Quick sanity check:
+	cd third_party/cott_solver
+	python3 -c "from chebyshev_ring import *; print('OK:', U * V == ONE)"
+
+	Run upstream solver tests:
+	cd third_party/cott_solver
+	pytest test_chebyshev_ring.py -v
+
+	Run Sp(4,Z) verification tests:
+	cd third_party/cott_solver
+	pytest test_sp4z.py -v
+	python3 test_sp4z.py

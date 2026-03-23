@@ -48,10 +48,9 @@ def test_conjugation_matrix():
 
 
 def test_epstein_zeta_ratio():
-    """The big prediction: Z_APP/Z_PPP approx 1/24 at s=-1/2"""
-    cutoff = 15
+    """Check convergent-domain ratio behavior and numerical stability."""
 
-    def epstein(s, sigma):
+    def epstein(s, sigma, cutoff):
         total = 0.0
         for n1 in range(-cutoff, cutoff + 1):
             for n2 in range(-cutoff, cutoff + 1):
@@ -61,11 +60,20 @@ def test_epstein_zeta_ratio():
                         total += ev ** (-s)
         return total
 
-    Z_PPP = epstein(3 / 2, [0, 0, 0])
-    Z_APP = epstein(3 / 2, [0.5, 0, 0])
-    ratio = Z_APP / Z_PPP
-    print(f"Z_APP/Z_PPP at s=3/2: {ratio:.6f}")
+    ratio_15 = epstein(3 / 2, [0.5, 0, 0], 15) / epstein(3 / 2, [0, 0, 0], 15)
+    ratio_25 = epstein(3 / 2, [0.5, 0, 0], 25) / epstein(3 / 2, [0, 0, 0], 25)
+
+    print(f"Z_APP/Z_PPP at s=3/2, cutoff=15: {ratio_15:.6f}")
+    print(f"Z_APP/Z_PPP at s=3/2, cutoff=25: {ratio_25:.6f}")
     print(f"1/24 = {1/24:.6f}")
+
+    # Real assertions in the convergent domain (s = 3/2):
+    assert ratio_15 > 0
+    assert ratio_25 > 0
+    assert ratio_25 < ratio_15
+
+    # Numerical stability check across cutoffs.
+    assert abs(ratio_25 - ratio_15) < 0.1
 
 
 if __name__ == "__main__":
