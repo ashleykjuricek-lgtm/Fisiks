@@ -220,7 +220,8 @@ public abstract class PhysicalObject implements Runnable, MouseListener, MouseMo
 		}
 		
 		if(grounded && ground != null) {
-			if(this.futureBody.getMaxX() < ground.getFutureX() || getFutureX() > ground.futureBody.getMaxX() || (int)this.getNextVY() != (int)ground.getNextVY() || !ground.grounded) {
+			// Unground if object separates horizontally, or if it's moving upward, or if ground itself is no longer grounded
+			if(this.futureBody.getMaxX() < ground.getFutureX() || getFutureX() > ground.futureBody.getMaxX() || this.getNextVY() > 0 || !ground.grounded) {
 				grounded = false;
 				ground = null;
 			}

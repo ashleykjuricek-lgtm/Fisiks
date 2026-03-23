@@ -211,8 +211,13 @@ public class CollisionHandler {
 
 				newOne = calcNewVel(one, two);
 				newTwo = calcNewVel(two, one);
-				one.futureVelocity.y = newOne.y;
-				two.futureVelocity.y = newTwo.y;
+				
+				// Only apply recalculated velocity if neither object is now grounded on the other
+				// Grounded objects should maintain zero Y velocity to prevent collapse
+				if(!(one.grounded && one.ground == two) && !(two.grounded && two.ground == one)) {
+					one.futureVelocity.y = newOne.y;
+					two.futureVelocity.y = newTwo.y;
+				}
 			}
 			else {
 				one.applyTimeX(-T);
