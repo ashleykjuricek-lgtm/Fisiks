@@ -25,14 +25,13 @@ package simulation;
 
 import java.awt.CardLayout;
 import java.awt.Color;
-import java.awt.Container;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.HashMap;
 
 import javax.swing.DefaultComboBoxModel;
-import javax.swing.JApplet;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -40,17 +39,15 @@ import javax.swing.JPanel;
 
 import world.World;
 
-public class Fisiks extends JApplet {
+public class Fisiks extends JPanel {
 
 	private static final long serialVersionUID = -7854467439567829357L;
 
 	private World world;
 	private HashMap<String, Simulation> sims;
 
-	private final Container pane = getContentPane();
-
-	private JComboBox worldBox;
-	private DefaultComboBoxModel worldBoxModel;
+	private JComboBox<String> worldBox;
+	private DefaultComboBoxModel<String> worldBoxModel;
 	
 	private CardLayout cards;
 
@@ -70,6 +67,7 @@ public class Fisiks extends JApplet {
 		setFocusable(true);
 		requestFocusInWindow();
 		setSize(800, 400);
+		setPreferredSize(new Dimension(800, 400));
 		cards = new CardLayout();
 		setLayout(cards);
 
@@ -90,7 +88,7 @@ public class Fisiks extends JApplet {
 
 	// start main timer
 	public void start() {
-		cards.show(pane, "Main Menu");
+		cards.show(this, "Main Menu");
 	}
 
 	// stop and remove all threads from pool
@@ -122,9 +120,9 @@ public class Fisiks extends JApplet {
 		simPlayBtn = initButton("Play", 100, 0, 100, 40);
 		simPauseBtn = initButton("Pause", 200, 0, 100, 40);
 
-		worldBoxModel = new DefaultComboBoxModel();
+		worldBoxModel = new DefaultComboBoxModel<String>();
 		
-		worldBox = new JComboBox(worldBoxModel);
+		worldBox = new JComboBox<String>(worldBoxModel);
 		worldBox.setBounds(250, 130, 300, 100);
 		
 		mainMenu.add(welcomeLbl);
@@ -172,12 +170,12 @@ public class Fisiks extends JApplet {
 
 				sims.get(worldBoxModel.getSelectedItem()).init();
 				world.play();
-				cards.show(pane, "Game");
+				cards.show(Fisiks.this, "Game");
 			}
 			else if(e.getActionCommand().equals(simMenuBtn.getActionCommand())) {
 				simPanel.remove(world);
 				world.destroy();
-				cards.show(pane, "Main Menu");
+				cards.show(Fisiks.this, "Main Menu");
 				world = World.makeWorld(getWidth(), getHeight() - 40, 40, true);
 				world.setLocation(0, getHeight() - world.getHeight());
 				simPanel.add(world);

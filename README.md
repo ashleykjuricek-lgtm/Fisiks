@@ -23,3 +23,17 @@ IN PROGRESS:
 	* Add Polygons
 	* Add lines
 	* Add static objects
+
+RUNNING:
+
+	This project now runs as a desktop Swing application through simulation.Main.
+
+	Compile:
+	find src -type f -name '*.java' -print0 | xargs -0 javac -d bin
+
+	Run:
+	java -cp bin simulation.Main
+
+	Note:
+	A graphical desktop environment is required. In headless environments (for example,
+	a container without DISPLAY), Java UI startup will fail.
