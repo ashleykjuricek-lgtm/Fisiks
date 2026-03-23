@@ -201,11 +201,15 @@ public class CollisionHandler {
 						}
 					}
 					
-					top.setFutureY(top.getFutureY() - (top.futureBody.getMaxY() - bottom.getFutureY()) - 1);
+					// Precise separation: use a small positive gap instead of -1 pixel
+					double gap = 0.1;  // 0.1 pixel gap to prevent re-collision
+					top.setFutureY(top.getFutureY() - (top.futureBody.getMaxY() - bottom.getFutureY() + gap));
 					//return;
 				}
 				else if(bottom.grounded && top.grounded) {
-					top.setFutureY(top.getFutureY() - (top.futureBody.getMaxY() - bottom.getFutureY()) - 1);
+					// Precise separation: maintain gap between stacked objects
+					double gap = 0.1;  // 0.1 pixel gap
+					top.setFutureY(top.getFutureY() - (top.futureBody.getMaxY() - bottom.getFutureY() + gap));
 				}
 				
 

@@ -196,8 +196,10 @@ public abstract class PhysicalObject implements Runnable, MouseListener, MouseMo
 		}
 		else {
 			futureVelocity.y = 0;
-			futureVelocity.x -= futureVelocity.x * .3;
-			if(Math.abs(futureVelocity.x) < minVelocity) {
+			// Light damping (5%) only when velocity is significant, prevents creep but allows rolling
+			if(Math.abs(futureVelocity.x) > minVelocity) {
+				futureVelocity.x -= futureVelocity.x * .05;
+			} else {
 				futureVelocity.x = 0;
 			}
 		}
