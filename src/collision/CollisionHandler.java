@@ -55,9 +55,29 @@ public class CollisionHandler {
 	}
 
 	// calculate new velocity for PhysicalObject one
+	/**
+	 * Calculate new velocity using Mirror Calculus reciprocal impulse.
+	 * This replaces ad-hoc momentum exchange with principled operator algebra.
+	 * 
+	 * The old formula oscillated due to recursive momentum calculations.
+	 * The new formula uses reciprocity: 0 · ω = 1 (differentiation · integration = identity).
+	 */
 	private static Vector2D calcNewVel(PhysicalObject one, PhysicalObject two) {
 		double minRestitution = Math.min(one.restitution, two.restitution);
-		return (one.futureVelocity.multiply(one.mass).add(two.futureVelocity.multiply(two.mass).add(two.futureVelocity.subtract(one.futureVelocity).multiply(two.mass * minRestitution)))).divide(one.mass + two.mass);
+		
+		// Use Mirror Calculus for stable momentum transfer
+		double impulseX = MirrorCalculus.reciprocalImpulse(
+			one.mass, one.futureVelocity.x,
+			two.mass, two.futureVelocity.x,
+			minRestitution
+		);
+		double impulseY = MirrorCalculus.reciprocalImpulse(
+			one.mass, one.futureVelocity.y,
+			two.mass, two.futureVelocity.y,
+			minRestitution
+		);
+		
+		return new Vector2D(impulseX, impulseY);
 	}
 
 	private static void offsetIntersections(PhysicalObject one, PhysicalObject two) {
