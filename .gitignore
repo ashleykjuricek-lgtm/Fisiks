@@ -1,0 +1,12 @@
+# Compiled Java classes
+bin/
+*.class
+
+# IDE and editor files
+.classpath
+.project
+.settings/
+*.swp
+*.swo
+*~
+.DS_Store
